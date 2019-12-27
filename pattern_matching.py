@@ -18,7 +18,7 @@ def vote_point(query_kp, map_kp, point_num):
     deg_cand = np.zeros((point_num, point_num))  
     len_cand = np.zeros((point_num, point_num))
 
-    # 全ての点の相対距離，相対角度を求める
+    # 全ての点のサイズ比，相対角度を求める
     for i in range(point_num):
         for j in range(i+1, point_num):
             # クエリ画像から特徴点間の角度と距離を計算
@@ -81,7 +81,7 @@ def vote_point(query_kp, map_kp, point_num):
     # どの2点も同じ相対関係になかった場合
     if np.max(cand_count) <= 1:
         print("[error] no matching point pair")
-        return None, None, None
+        return None, None, None, None
 
     # もっとも多く相対関係が一致する2点を取ってくる
     maxidx = np.unravel_index(np.argmax(cand_count), cand_count.shape)
@@ -92,16 +92,16 @@ def vote_point(query_kp, map_kp, point_num):
 
 
 # 最終的な描画関数
-def draw_final(result_img, t_xcenter, t_ycenter, deg_value, width_tmp):
+def draw_final(result_img, m_xcenter, m_ycenter, deg_value, width_query):
     # 中心点の描画
-    cv2.circle(result_img, (int(t_xcenter) + width_tmp, int(t_ycenter)), 20, color=(0, 0, 255), thickness=-1)
+    cv2.circle(result_img, (int(m_xcenter) + width_query, int(m_ycenter)), 20, color=(0, 0, 255), thickness=-1)
 
     # 向きの計算，矢印描画
     deg_front = - deg_value * math.pi / 180 - math.pi/2
-    q_xfront = t_xcenter + 200 * math.cos(deg_front)
-    q_yfront = t_ycenter + 200 * math.sin(deg_front)
-    cv2.arrowedLine(result_img, (int(t_xcenter) + width_tmp, int(t_ycenter)),
-                    (int(q_xfront) + width_tmp, int(q_yfront)), color=(255, 0, 0), thickness=15)
+    q_xfront = m_xcenter + 200 * math.cos(deg_front)
+    q_yfront = m_ycenter + 200 * math.sin(deg_front)
+    cv2.arrowedLine(result_img, (int(m_xcenter) + width_query, int(m_ycenter)),
+                    (int(q_xfront) + width_query, int(q_yfront)), color=(255, 0, 0), thickness=15)
 
     final_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
     plt.imshow(final_img)
@@ -117,15 +117,22 @@ def main():
     # query = カメラ画像
     # map = マップ
 
+    # gamma補正の関数
+    gamma = 1.8
+    gamma_cvt = np.zeros((256,1),dtype = 'uint8')
+    for i in range(256):
+        gamma_cvt[i][0] = 255 * (float(i)/255) ** (1.0/gamma)
+
     # 画像の拡大，縮小の割合(重要パラメータ)
     expand_query = 0.5
     expand_map = 2
     
     # クエリ画像を読み込んで特徴量計算
-    query_img = cv2.imread('./img/query/img_paper1.png', 0)
+    query_img = cv2.imread('./img/query/img_camera1.png', 0)
+    query_img = cv2.LUT(query_img, gamma_cvt)
+    # cv2.imwrite('./log/input_img.png', query_img)
     query_img = cv2.resize(query_img, (int(query_img.shape[1] * expand_query), 
-                              int(query_img.shape[0] * expand_query)))
-    # cv2.imwrite('./log/fig/{time_start_int}_input.png', template_image)
+                           int(query_img.shape[0] * expand_query)))
     height_query, width_query = query_img.shape[:2]
     kp_query, des_query = akaze.detectAndCompute(query_img, None)
     # print('[time] feature calculation query: ', time.time() - time_start)
@@ -190,9 +197,9 @@ def main():
 
     # クエリ画像の1点目とクエリ画像の中心の相対的な関係
     q_x1, q_y1 = query_kp[m1].pt
-    m_x1, m_y1 = map_kp[m2].pt
-    q_xcenter = width_query/2
-    q_ycenter = height_query/2
+    m_x1, m_y1 = map_kp[m1].pt
+    q_xcenter = int(width_query/2)
+    q_ycenter = int(height_query/2)
     q_center_deg = math.atan2(q_ycenter - q_y1, q_xcenter - q_x1) * 180 / math.pi
     q_center_len = math.sqrt((q_xcenter - q_x1) ** 2 + (q_ycenter - q_y1) ** 2)
     #print(q_xcenter, q_ycenter, q_center_deg, q_center_len)
@@ -206,7 +213,7 @@ def main():
     m_center_rad = m_center_deg * math.pi / 180
     m_xcenter = m_x1 + m_center_len * math.cos(m_center_rad)
     m_ycenter = m_y1 + m_center_len * math.sin(m_center_rad)
-    #print(t_center_rad, math.cos(t_center_rad), math.sin(t_center_rad), t_xcenter, t_ycenter)
+    # print(m_center_rad, math.cos(m_center_rad), math.sin(m_center_rad), m_xcenter, m_ycenter)
 
     # 算出された値が正しい座標範囲に入っているかどうか
     if (m_xcenter < 0) or (m_xcenter > width_map):
@@ -224,8 +231,8 @@ def main():
     drc_current = deg_value
 
     print('*****detection scceeded!*****')
-    print('[time] final time: ', time.time() - time_start)
-    print("final output score-> x: {}, y: {}, drc: {}".format(x_current, y_current, drc_current))
+    print('[time] final time: {:.4f} (s)'.format(time.time() - time_start))
+    print("final output score-> x: {}, y: {}, drc: {:.2f}°".format(x_current, y_current, drc_current))
 
     # 中心点描画
     draw_final(result_img, m_xcenter, m_ycenter, deg_value, width_query)
