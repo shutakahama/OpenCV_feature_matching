@@ -7,15 +7,15 @@ Python OpenCVでAKAZE特徴量を用いたマッチングを行なっていま�
 カメラ画像を入力として，マップ上での現在位置と方向を出力します．  
 詳細はこちらの記事を参照してください．  
 
-(記事)
+[OpenCVで他のどの記事よりも頑強に特徴量マッチングしてみた](https://qiita.com/grouse324/items/74988134a9073568b32d)
 
 ## 実行環境
 ```
 python = 3.7
-cv2 = 4.1
+opencv-python = 4.1
 numpy = 1.17
 matplotlib = 3.1
-PIL = 6.2
+pillow = 6.2
 ```
 
 ## 実行
